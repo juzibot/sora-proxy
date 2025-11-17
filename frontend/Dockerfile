@@ -1,4 +1,4 @@
-FROM node:18-alpine AS builder
+FROM 789252305933.dkr.ecr.cn-northwest-1.amazonaws.com.cn/node:20.11.1-alpine3.19 AS builder
 
 WORKDIR /app
 
@@ -8,7 +8,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM node:18-alpine
+FROM 789252305933.dkr.ecr.cn-northwest-1.amazonaws.com.cn/node:20.11.1-alpine3.19
 
 WORKDIR /app
 
