@@ -1,4 +1,4 @@
-FROM 789252305933.dkr.ecr.cn-northwest-1.amazonaws.com.cn/node:20.11.1-alpine3.19 AS builder
+FROM i.juzibot.com/node:20.11.1-alpine3.19 AS builder
 
 # Build-time env for Next.js (NEXT_PUBLIC_* are inlined during `next build`)
 ARG NEXT_PUBLIC_API_URL
@@ -19,7 +19,7 @@ COPY . .
 RUN mkdir -p public
 RUN npm run build
 
-FROM 789252305933.dkr.ecr.cn-northwest-1.amazonaws.com.cn/node:20.11.1-alpine3.19
+FROM i.juzibot.com/node:20.11.1-alpine3.19
 
 WORKDIR /app
 
