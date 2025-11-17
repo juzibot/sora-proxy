@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// Use relative path so requests go through Next.js and get proxied to backend via next.config.js rewrites.
+// All API calls should hit '/api/...', which Next forwards to the backend service.
+const API_URL = '';
 
 // Storage keys
 const API_KEY_STORAGE_KEY = 'sora_api_key';
