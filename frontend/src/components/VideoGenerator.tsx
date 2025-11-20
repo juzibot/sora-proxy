@@ -16,6 +16,7 @@ export default function VideoGenerator() {
     size: '720x1280',
     duration: 4,
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   useEffect(() => {
     const provider = getProvider();
@@ -24,6 +25,15 @@ export default function VideoGenerator() {
       if (dep) setOptions((prev) => ({ ...prev, model: dep }));
     }
   }, []);
+
+  // Stop any ongoing polling when component unmounts
+  useEffect(() => {
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [pollInterval]);
 
   const stringifyError = (err: any): string => {
     if (err == null) return '';
@@ -66,7 +76,17 @@ export default function VideoGenerator() {
       }
     } catch (error: any) {
       console.error('Error polling video status:', error);
-      toast.error('获取视频状态失败');
+      const status = error?.response?.status;
+      if (status === 404) {
+        // Video deleted on server; stop polling and remove locally
+        try {
+          const { removeStoredVideo } = await import('@/lib/api');
+          removeStoredVideo(videoId);
+        } catch {}
+        toast.error('视频已被删除');
+      } else {
+        toast.error('获取视频状态失败');
+      }
       if (pollInterval) {
         clearInterval(pollInterval);
         setPollInterval(null);
@@ -81,14 +101,26 @@ export default function VideoGenerator() {
       return;
     }
 
+    // Clear previous polling timer if any
+    if (pollInterval) {
+      clearInterval(pollInterval);
+      setPollInterval(null);
+    }
+
     setLoading(true);
     setVideoResult(null);
 
     try {
-      const result = await videoAPI.generateVideo({
-        prompt,
-        ...options,
-      });
+      const result = imageFile
+        ? await videoAPI.generateVideoFromImage({
+            prompt,
+            image: imageFile,
+            ...options,
+          } as any)
+        : await videoAPI.generateVideo({
+            prompt,
+            ...options,
+          });
 
       setVideoResult(result);
       // Save to local history immediately
@@ -195,13 +227,22 @@ export default function VideoGenerator() {
               >
                 <option value="720x1280">720x1280（竖屏）</option>
                 <option value="1280x720">1280x720（横屏）</option>
-                <option value="1024x1792">1024x1792（竖屏）</option>
-                <option value="1792x1024">1792x1024（横屏）</option>
               </select>
             </div>
 
-            {/* Spacer to keep grid alignment */}
-            <div />
+            {/* Image Reference */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                参考图片（可选）
+              </label>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                disabled={loading}
+                className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-white/10 file:text-white hover:file:bg-white/20"
+              />
+            </div>
 
             {/* Seconds */}
             <div>
@@ -306,12 +347,38 @@ export default function VideoGenerator() {
                   <Download className="w-4 h-4" />
                   下载视频
                 </button>
+                <button
+                  onClick={() => {
+                    setVideoResult(null);
+                    setPrompt('');
+                  }}
+                  className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-medium py-2 px-4 rounded-lg transition-colors ml-2"
+                >
+                  再次生成
+                </button>
               </div>
             )}
 
             {videoResult.status === 'failed' && videoResult.error && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
                 <p className="text-red-400">{stringifyError(videoResult.error as any)}</p>
+              </div>
+            )}
+            {videoResult.status === 'failed' && (
+              <div className="flex gap-2">
+                <button
+                  onClick={handleGenerate}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  重试生成
+                </button>
+                <button
+                  onClick={() => setVideoResult(null)}
+                  className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  修改参数
+                </button>
               </div>
             )}
           </div>

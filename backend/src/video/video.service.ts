@@ -19,6 +19,14 @@ export class VideoService {
     }, userApiKey, provider);
   }
 
+  async generateVideoFromImage(image: Express.Multer.File, dto: GenerateVideoDto, userApiKey?: string, provider?: { provider?: 'openai' | 'azure'; azureEndpoint?: string; azureApiVersion?: string; azureDeployment?: string }) {
+    this.logger.log(`Generating video from image with prompt: ${dto.prompt}`);
+    return await this.openAIService.generateVideoFromImage(image, dto.prompt, dto.model, {
+      size: dto.size,
+      duration: dto.duration,
+    }, userApiKey, provider);
+  }
+
   async getVideoStatus(videoId: string, userApiKey?: string, provider?: { provider?: 'openai' | 'azure'; azureEndpoint?: string; azureApiVersion?: string; azureDeployment?: string }) {
     this.logger.log(`Getting status for video: ${videoId}`);
     return await this.openAIService.getVideoStatus(videoId, userApiKey, provider);

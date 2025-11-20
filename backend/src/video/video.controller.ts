@@ -10,6 +10,8 @@ import {
   HttpException,
   HttpStatus,
   Res,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { VideoService } from './video.service';
 import { 
@@ -71,6 +73,28 @@ export class VideoController {
   ) {
     try {
       return await this.videoService.generateVideo(dto, apiKey, { provider, azureEndpoint, azureApiVersion, azureDeployment });
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  /**
+   * Generate a new video from text prompt with image reference (multipart)
+   * POST /api/videos/generate/image
+   */
+  @Post('generate/image')
+  @UseInterceptors(require('@nestjs/platform-express').FileInterceptor('image'))
+  async generateVideoFromImage(
+    @UploadedFile() image: Express.Multer.File,
+    @Body() dto: GenerateVideoDto,
+    @Headers('x-provider') provider?: 'openai' | 'azure',
+    @Headers('x-azure-endpoint') azureEndpoint?: string,
+    @Headers('x-azure-version') azureApiVersion?: string,
+    @Headers('x-azure-deployment') azureDeployment?: string,
+    @ApiKey() apiKey?: string,
+  ) {
+    try {
+      return await this.videoService.generateVideoFromImage(image, dto, apiKey, { provider, azureEndpoint, azureApiVersion, azureDeployment });
     } catch (error) {
       throw this.toHttpException(error);
     }

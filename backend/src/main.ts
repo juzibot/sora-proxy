@@ -11,8 +11,12 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Enable validation
-  app.useGlobalPipes(new ValidationPipe());
+  // Enable validation with transformation (coerce multipart/form fields)
+  app.useGlobalPipes(new ValidationPipe({
+    transform: true,
+    whitelist: true,
+    forbidNonWhitelisted: false,
+  }));
 
   const port = process.env.BACKEND_PORT || 3001;
   await app.listen(port);

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
+import FormData from 'form-data';
 
 type AzureOpts = { azureEndpoint?: string; azureApiVersion?: string; azureDeployment?: string };
 
@@ -70,7 +71,10 @@ export class AzureVideoProvider {
     }
     const { baseUrl, params, headers } = this.buildBase(userApiKey, azure);
 
-    const resolution = options?.size as string | undefined; // WxH
+    // Azure Sora 2 当前仅支持 720x1280（竖）与 1280x720（横），否则会 400 user_error
+    const candidateSize = options?.size as string | undefined; // WxH
+    const allowedSizes = new Set(['720x1280', '1280x720']);
+    const resolution = candidateSize && allowedSizes.has(String(candidateSize)) ? String(candidateSize) : undefined;
     const seconds = options?.duration ?? options?.seconds;
 
     const normalizedModel = (() => {
@@ -99,6 +103,57 @@ export class AzureVideoProvider {
     }
   }
 
+  async generateVideoFromImage(
+    imageBuffer: Buffer,
+    filename: string,
+    contentType: string,
+    prompt: string,
+    model: string,
+    options?: any,
+    userApiKey?: string,
+    azure?: AzureOpts,
+  ) {
+    const { baseUrl, params, headers } = this.buildBase(userApiKey, azure);
+    const allowedSizes = new Set(['720x1280', '1280x720']);
+    const size = options?.size && allowedSizes.has(String(options.size)) ? String(options.size) : '720x1280';
+    const seconds = options?.duration ?? options?.seconds;
+
+    // Ensure image size matches requested WxH per Azure requirement
+    let processed = imageBuffer;
+    let uploadContentType = contentType || 'image/png';
+    try {
+      // Lazy-load sharp and make it optional for local dev
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const sharp: any = require('sharp');
+      const [w, h] = String(size).split('x').map((n) => parseInt(n, 10));
+      processed = await sharp(imageBuffer).resize(w, h, { fit: 'cover' }).png().toBuffer();
+      uploadContentType = 'image/png';
+      filename = filename?.endsWith('.png') ? filename : 'reference.png';
+    } catch (err) {
+      this.logger.warn(`Image normalize skipped (sharp unavailable or failed): ${(err as any)?.message || err}`);
+    }
+
+    const form = new FormData();
+    form.append('prompt', prompt);
+    if (model) form.append('model', model);
+    if (size) form.append('size', size);
+    if (seconds != null) form.append('seconds', String(seconds));
+    form.append('input_reference', processed, { filename, contentType: uploadContentType } as any);
+
+    const url = `${baseUrl}/v1/videos`;
+    const mergedHeaders = { ...headers, ...form.getHeaders() } as Record<string, string>;
+    this.logger.debug(`POST ${url} (image) | provider=azure | params=${JSON.stringify(params)}`);
+    const res = await firstValueFrom(
+      this.httpService.post(url, form, {
+        headers: mergedHeaders,
+        params,
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+        proxy: false,
+      }),
+    );
+    return res.data;
+  }
   async getVideoStatus(videoId: string, userApiKey?: string, azure?: AzureOpts) {
     const { baseUrl, params, headers } = this.buildBase(userApiKey, azure);
     // Align with videos API

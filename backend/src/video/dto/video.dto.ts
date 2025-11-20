@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsNumber, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsIn } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class GenerateVideoDto {
   @IsString()
@@ -10,11 +11,11 @@ export class GenerateVideoDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['720x1280', '1280x720', '1024x1792', '1792x1024'])
+  @IsIn(['720x1280', '1280x720'])
   size?: string;
 
   @IsOptional()
-  @IsNumber()
+  @Type(() => Number)
   @IsIn([4, 8, 12])
   duration?: number;
 }

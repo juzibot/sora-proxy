@@ -2,6 +2,8 @@ FROM i.juzibot.com/node:20.11.1-alpine3.19 AS builder
 
 WORKDIR /app
 
+RUN apk add --no-cache libc6-compat
+
 COPY package*.json ./
 RUN npm ci
 

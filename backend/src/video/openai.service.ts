@@ -178,6 +178,71 @@ export class OpenAIService {
   }
 
   /**
+   * Create a video from image reference (multipart)
+   */
+  async generateVideoFromImage(image: Express.Multer.File, prompt: string, model = 'sora-2', options?: any, userApiKey?: string, providerOpts?: { provider?: 'openai' | 'azure'; azureEndpoint?: string; azureApiVersion?: string; azureDeployment?: string }) {
+    const apiKey = this.getApiKey(userApiKey);
+    try {
+      const trimmedPrompt = (prompt ?? '').toString();
+      if (!trimmedPrompt.trim()) {
+        throw new Error("'prompt' is required");
+      }
+      if (!image?.buffer || !image?.mimetype) {
+        throw new Error("'image' file is required");
+      }
+      const provider = this.resolveProvider(providerOpts);
+      if (provider.provider === 'azure') {
+        return await this.azureVideoProvider.generateVideoFromImage(
+          image.buffer,
+          image.originalname || 'reference.png',
+          image.mimetype,
+          trimmedPrompt,
+          model,
+          { size: this.mapSizeToResolution(options?.size), duration: options?.duration ?? options?.seconds },
+          userApiKey,
+          { azureEndpoint: providerOpts?.azureEndpoint, azureApiVersion: providerOpts?.azureApiVersion, azureDeployment: providerOpts?.azureDeployment },
+        );
+      } else {
+        // Fallback for OpenAI path: try multipart with 'input_reference'
+        const resolvedModel = this.normalizeModel(model);
+        const form = new FormData();
+        form.append('model', String(resolvedModel));
+        form.append('prompt', trimmedPrompt);
+        const resolution = this.mapSizeToResolution(options?.size);
+        if (resolution) form.append('size', resolution);
+        const seconds = options?.duration ?? options?.seconds;
+        if (seconds != null) form.append('seconds', String(seconds));
+        form.append('input_reference', image.buffer, {
+          filename: image.originalname || 'reference.png',
+          contentType: image.mimetype,
+        } as any);
+        const url = `${provider.baseUrl}/videos`;
+        const headers = {
+          ...provider.headers,
+          'Authorization': `Bearer ${apiKey}`,
+          ...form.getHeaders(),
+        };
+        this.logger.debug(`POST ${url} | provider=openai (image)`);
+        const response = await firstValueFrom(
+          this.httpService.post(url, form, {
+            headers,
+            params: provider.params,
+            maxBodyLength: Infinity,
+            maxContentLength: Infinity,
+          }),
+        );
+        return response.data;
+      }
+    } catch (error) {
+      const status = error?.response?.status;
+      const data = error?.response?.data;
+      this.logger.error(
+        `Failed to generate video from image: ${error?.message || 'Unknown'} | status=${status} | payload=${safeStringify(data)}`,
+      );
+      throw error;
+    }
+  }
+  /**
    * Get video generation status
    */
   async getVideoStatus(videoId: string, userApiKey?: string, providerOpts?: { provider?: 'openai' | 'azure'; azureEndpoint?: string; azureApiVersion?: string }) {

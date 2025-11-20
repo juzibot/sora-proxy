@@ -169,21 +169,16 @@ export const removeStoredVideo = (videoId: string) => {
 };
 
 export const mergeRemoteIntoStored = (remote: VideoResponse[]): StoredVideo[] => {
-  const byId: Record<string, StoredVideo> = {};
-  for (const v of getStoredVideos()) {
-    byId[v.id] = v;
-  }
+  // Replace local list with what server returns, preserving providerMeta for kept items.
+  const storedIndex = new Map(getStoredVideos().map((v) => [v.id, v]));
+  const next: StoredVideo[] = [];
   for (const r of remote || []) {
-    const existing = byId[r.id];
-    if (existing) {
-      byId[r.id] = { ...existing, ...r, providerMeta: existing.providerMeta };
-    } else {
-      byId[r.id] = { ...r };
-    }
+    const prev = storedIndex.get(r.id);
+    next.push({ ...(prev || {}), ...r, providerMeta: prev?.providerMeta });
   }
-  const result = Object.values(byId).sort((a, b) => (b.created || 0) - (a.created || 0));
-  setStoredVideos(result);
-  return result;
+  next.sort((a, b) => (b.created || 0) - (a.created || 0));
+  setStoredVideos(next);
+  return next;
 };
 
 // -------- Navigation helpers --------
@@ -207,6 +202,20 @@ export const videoAPI = {
   // Generate a new video
   generateVideo: async (params: GenerateVideoParams): Promise<VideoResponse> => {
     const response = await api.post('/api/videos/generate', params);
+    return response.data;
+  },
+
+  // Generate a new video from an image (multipart)
+  generateVideoFromImage: async (params: GenerateVideoParams & { image: File }): Promise<VideoResponse> => {
+    const form = new FormData();
+    form.append('prompt', params.prompt);
+    if (params.model) form.append('model', params.model);
+    if (params.size) form.append('size', params.size);
+    if (params.duration != null) form.append('duration', String(params.duration));
+    form.append('image', params.image);
+    const response = await api.post('/api/videos/generate/image', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return response.data;
   },
 
