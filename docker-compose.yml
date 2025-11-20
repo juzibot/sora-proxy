@@ -13,6 +13,7 @@ services:
       - OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL}
       - BACKEND_PORT=3001
       - CORS_ORIGIN=http://localhost:3000
+    restart: always
     networks:
       - sora-network
 
@@ -32,6 +33,7 @@ services:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://backend:3001}
     depends_on:
       - backend
+    restart: always
     networks:
       - sora-network
 
