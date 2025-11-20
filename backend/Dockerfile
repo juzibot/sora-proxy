@@ -5,7 +5,8 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat
 
 COPY package*.json ./
-RUN npm ci
+# Use npm install to avoid lockfile mismatch failures during image builds
+RUN npm install
 
 COPY . .
 RUN npm run build
